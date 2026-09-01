@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import { env } from './config/env.js';
 import authRoutes from './routes/authRoutes.js';
+import communityMembershipRoutes from './routes/communityMembership.js';
 import universityRoutes from './routes/universityRoutes.js';
 
 const allowedOrigins = (env.corsOrigin ?? '')
@@ -85,6 +86,7 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/universities', universityRoutes);
+app.use('/api/universities', communityMembershipRoutes);
 
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && 'body' in err) {

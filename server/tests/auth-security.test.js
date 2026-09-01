@@ -13,6 +13,11 @@ import {
   findUniversityBySlug,
   normalizeUniversitySlug,
 } from '../src/services/universityService.js';
+import {
+  getUniversityMembershipStatus,
+  joinUniversity,
+  leaveUniversity,
+} from '../src/services/communityMembershipService.js';
 
 function createResponse() {
   return {
