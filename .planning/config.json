@@ -1,0 +1,21 @@
+{
+  "project": "Campus-Crypt",
+  "repo": "SilentThunderSquad/Campus-Crypt",
+  "workflow": "new-project",
+  "status": "initialized",
+  "default_branch": "main",
+  "active_phase": 1,
+  "phase_order": [
+    "foundation",
+    "communities",
+    "content",
+    "social",
+    "moderation",
+    "launch"
+  ],
+  "source_docs": [
+    "Campus Crypt ~ SRS.md",
+    "README.md"
+  ],
+  "next_command": "/gsd-plan-phase 1"
+}
