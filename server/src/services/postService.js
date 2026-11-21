@@ -55,9 +55,13 @@ export async function createPost({ universitySlug, userId, content }) {
   return serializePost(post);
 }
 
-export async function updateOwnPost({ postId, userId, content }) {
-  const post = await prisma.post.findUnique({ where: { id: postId }, select: { authorId: true } });
-  if (!post || post.authorId !== userId) {
+export async function updateOwnPost({ universitySlug, postId, userId, content }) {
+  const university = await findUniversityBySlug(universitySlug);
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    select: { authorId: true, universityId: true },
+  });
+  if (!university || !post || post.universityId !== university.id || post.authorId !== userId) {
     const error = new Error('Post not found or you are not its author.');
     error.status = 403;
     throw error;

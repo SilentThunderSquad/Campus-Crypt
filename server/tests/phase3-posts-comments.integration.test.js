@@ -88,10 +88,10 @@ test('Phase 3 rejects unverified standalone posts, mismatched parents, and non-o
       (error) => error.status === 400,
     );
     await assert.rejects(
-      updateOwnPost({ postId: post.id, userId: fixture.secondaryUser.id, content: 'IDOR attempt' }),
+      updateOwnPost({ universitySlug: fixture.university.slug, postId: post.id, userId: fixture.secondaryUser.id, content: 'IDOR attempt' }),
       (error) => error.status === 403,
     );
-    const updated = await updateOwnPost({ postId: post.id, userId: fixture.user.id, content: 'Edited by owner' });
+    const updated = await updateOwnPost({ universitySlug: fixture.university.slug, postId: post.id, userId: fixture.user.id, content: 'Edited by owner' });
     assert.equal(updated.content, 'Edited by owner');
   } finally {
     await otherFixture.cleanup();

@@ -24,6 +24,7 @@ router.post('/:slug/posts', requireAuth, requireVerifiedUser, async (req, res) =
 router.patch('/:slug/posts/:postId', requireAuth, async (req, res) => {
   try {
     const post = await updateOwnPost({
+      universitySlug: req.params.slug,
       postId: req.params.postId,
       userId: req.user.id,
       content: req.body?.content,
