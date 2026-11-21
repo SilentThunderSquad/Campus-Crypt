@@ -1,7 +1,10 @@
 {
   "project": "Campus-Crypt",
   "repo": "SilentThunderSquad/Campus-Crypt",
-  "workflow": "new-project",
+  "workflow": {
+    "nyquist_validation": true,
+    "ai_integration_phase": true
+  },
   "status": "initialized",
   "default_branch": "main",
   "active_phase": 1,
