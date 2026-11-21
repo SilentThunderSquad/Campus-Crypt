@@ -32,8 +32,8 @@ estimateTokens: 42000
 actuals:
   tokens: 18400
   tasks: 2
-  commits: 4
-commits: 4
+  commits: 5
+commits: 5
 plan_head_before: b530bb9bfe687b3f09965548b6de30957c93b3fa
 plan_head_after: 3937f01105c8b7680e19a8b0cd1e2e5e9dd6dadc
 status: complete
@@ -47,7 +47,9 @@ Implemented the scoped Tasks 2 and 3 vertical slice: verified users can publish 
 
 - Mandatory Wave 0 migration-preservation suite: passed before and after migration.
 - Targeted post/comment integration tests: 2 passed.
-- Full server test suite: 43 passed.
+- Post-edit authorization regressions: 4 passed.
+- Full server test suite: 51 passed, 0 failed in the final live rerun.
+- Final live full server test suite: 51 passed, 0 failed.
 - Server build/syntax checks: passed.
 - Client build: passed.
 - Prisma validate: passed.
