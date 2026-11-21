@@ -1,3 +1,16 @@
+---
+gsd_state_version: '1.0'
+status: ready_to_plan
+progress:
+  total_phases: 7
+  completed_phases: 2
+  total_plans: 0
+  completed_plans: 0
+  percent: 29
+current_phase: 3
+current_phase_name: Posts, ratings, and community content
+---
+
 # Project State
 
 ## Current status
