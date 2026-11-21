@@ -56,11 +56,23 @@ export async function createPost({ universitySlug, userId, content }) {
 }
 
 export async function updateOwnPost({ universitySlug, postId, userId, content }) {
+  if (!userId) {
+    const error = new Error('Authentication required.');
+    error.status = 401;
+    throw error;
+  }
+
   const university = await findUniversityBySlug(universitySlug);
+  const user = await currentUser(userId);
   const post = await prisma.post.findUnique({
     where: { id: postId },
     select: { authorId: true, universityId: true },
   });
+  if (!user || user.verificationStatus !== 'verified') {
+    const error = new Error('Verified users are required to edit their posts.');
+    error.status = 403;
+    throw error;
+  }
   if (!university || !post || post.universityId !== university.id || post.authorId !== userId) {
     const error = new Error('Post not found or you are not its author.');
     error.status = 403;
