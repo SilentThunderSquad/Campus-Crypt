@@ -8,6 +8,14 @@ export function UniversityPage({ slug, accessToken }) {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [reviewData, setReviewData] = useState(null);
+  const [reviewText, setReviewText] = useState('');
+  const [reviewRatings, setReviewRatings] = useState({
+    academics: 5,
+    facilities: 5,
+    campus_life: 5,
+    value: 5,
+  });
 
   const requestHeaders = accessToken
     ? { Authorization: `Bearer ${accessToken}` }
@@ -18,12 +26,16 @@ export function UniversityPage({ slug, accessToken }) {
     setError(null);
 
     try {
-      const [detailResponse, membershipResponse] = await Promise.all([
+      const [detailResponse, membershipResponse, reviewResponse] = await Promise.all([
         fetch(`${apiBase}/api/universities/${encodeURIComponent(slug)}`, {
           headers: requestHeaders,
           credentials: 'include',
         }),
         fetch(`${apiBase}/api/universities/${encodeURIComponent(slug)}/membership-status`, {
+          headers: requestHeaders,
+          credentials: 'include',
+        }),
+        fetch(`${apiBase}/api/universities/${encodeURIComponent(slug)}/reviews`, {
           headers: requestHeaders,
           credentials: 'include',
         }),
@@ -60,6 +72,11 @@ export function UniversityPage({ slug, accessToken }) {
         setMembership(membershipBody.membershipStatus);
       } else {
         setMembership(null);
+      }
+      if (reviewResponse.ok) {
+        setReviewData(await reviewResponse.json());
+      } else {
+        setReviewData(null);
       }
     } catch {
       setError('Network error. Unable to load university.');
@@ -99,6 +116,34 @@ export function UniversityPage({ slug, accessToken }) {
       await loadUniversity();
     } catch {
       setError('Network error. Unable to update community membership.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const submitReview = async (event) => {
+    event.preventDefault();
+    setActionLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(
+        `${apiBase}/api/universities/${encodeURIComponent(slug)}/reviews`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...requestHeaders },
+          credentials: 'include',
+          body: JSON.stringify({ text: reviewText, ratings: reviewRatings }),
+        },
+      );
+      const body = await response.json();
+      if (!response.ok) {
+        setError(body.message || 'Unable to submit university review.');
+        return;
+      }
+      setReviewText('');
+      await loadUniversity();
+    } catch {
+      setError('Network error. Unable to submit university review.');
     } finally {
       setActionLoading(false);
     }
@@ -172,6 +217,70 @@ export function UniversityPage({ slug, accessToken }) {
           <a href={`/u/${encodeURIComponent(university.slug)}/feed`}>
             View community feed
           </a>
+        </section>
+
+        <section className="review-aggregates">
+          <h2>University ratings</h2>
+          {reviewData ? (
+            <>
+              <p><strong>Overall:</strong> {reviewData.aggregates.overall ?? 'No ratings'} ({reviewData.aggregates.reviewCount} reviews)</p>
+              <div>
+                {Object.entries(reviewData.aggregates.categories).map(([category, value]) => (
+                  <span className="category-score" key={category}>
+                    {category.replace('_', ' ')}: {value.average ?? 'No ratings'} ({value.count})
+                  </span>
+                ))}
+              </div>
+            </>
+          ) : <p>Ratings are unavailable.</p>}
+        </section>
+
+        {membership?.isAuthenticated && (
+          <section className="review-composer">
+            <h2>Write a review</h2>
+            {membership.canJoin || membership.canLeave ? (
+              <form onSubmit={submitReview}>
+                <textarea
+                  value={reviewText}
+                  onChange={(event) => setReviewText(event.target.value)}
+                  maxLength={5000}
+                  placeholder="Share an optional review"
+                />
+                {Object.keys(reviewRatings).map((category) => (
+                  <label key={category}>
+                    {category.replace('_', ' ')}
+                    <select
+                      value={reviewRatings[category]}
+                      onChange={(event) => setReviewRatings((current) => ({
+                        ...current,
+                        [category]: Number(event.target.value),
+                      }))}
+                    >
+                      {[1, 2, 3, 4, 5].map((score) => <option key={score} value={score}>{score}</option>)}
+                    </select>
+                  </label>
+                ))}
+                <button type="submit" disabled={actionLoading}>
+                  {actionLoading ? 'Submitting...' : 'Submit review'}
+                </button>
+              </form>
+            ) : <p>Verified status is required to submit a review.</p>}
+          </section>
+        )}
+
+        {!membership?.isAuthenticated && (
+          <section className="review-composer"><p>Sign in to submit a review. Public ratings remain available.</p></section>
+        )}
+
+        <section className="public-reviews">
+          <h2>Public reviews</h2>
+          {reviewData?.reviews?.length ? reviewData.reviews.map((review) => (
+            <article className="public-review" key={review.id}>
+              <strong>{review.author?.profile?.displayName || review.author?.name}</strong>
+              {review.text && <p>{review.text}</p>}
+              <p>{Object.entries(review.ratings).map(([category, score]) => `${category}: ${score}`).join(' · ')}</p>
+            </article>
+          )) : <p>No public reviews yet.</p>}
         </section>
       </main>
 

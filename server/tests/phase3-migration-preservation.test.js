@@ -198,6 +198,29 @@ test('Phase 3 migration preservation: UserProfile username and userId reject dup
   }
 });
 
+test('Phase 3 migration preservation: review/rating uniqueness and foreign keys remain constrained', async () => {
+  const reviewIndexes = await readPostgresIndexes('university_reviews');
+  const ratingIndexes = await readPostgresIndexes('university_ratings');
+  assert.ok(
+    reviewIndexes.some(
+      (row) => row.name === 'university_reviews_userId_universityId_key' && row.definition.includes('UNIQUE'),
+    ),
+  );
+  assert.ok(
+    ratingIndexes.some(
+      (row) => row.name === 'university_ratings_reviewId_category_key' && row.definition.includes('UNIQUE'),
+    ),
+  );
+
+  const reviewConstraints = await readPostgresConstraint('university_reviews');
+  const ratingConstraints = await readPostgresConstraint('university_ratings');
+  assert.ok(reviewConstraints.some((row) => row.type === 'f' && row.definition.includes('REFERENCES users(id)')));
+  assert.ok(reviewConstraints.some((row) => row.type === 'f' && row.definition.includes('REFERENCES universities(id)')));
+  assert.ok(ratingConstraints.some((row) => row.type === 'f' && row.definition.includes('REFERENCES university_reviews(id)')));
+  assert.ok(ratingConstraints.some((row) => row.type === 'f' && row.definition.includes('REFERENCES universities(id)')));
+  assert.ok(ratingConstraints.some((row) => row.type === 'c' && row.definition.includes('score') && row.definition.includes('1') && row.definition.includes('5')));
+});
+
 test('Phase 3 migration preservation: existing foreign-key relations and cascades survive unchanged', async () => {
   const fixture = await createPhase3FixtureSet({ label: 'foreign-key-relations' });
   try {

@@ -24,6 +24,13 @@ enum AuthProvider {
   google
 }
 
+enum RatingCategory {
+  academics
+  facilities
+  campus_life
+  value
+}
+
 model User {
   id                    String                @id @default(uuid())
   email                 String                @unique
@@ -43,6 +50,7 @@ model User {
   profile               UserProfile?
   posts                 Post[]
   comments              Comment[]
+  universityReviews     UniversityReview[]
 
   @@map("users")
 }
@@ -91,6 +99,8 @@ model University {
   memberships CommunityMembership[]
   posts       Post[]
   comments    Comment[]
+  reviews     UniversityReview[]
+  ratings     UniversityRating[]
 
   @@map("universities")
 }
@@ -167,4 +177,35 @@ model Comment {
   @@index([parentCommentId])
   @@index([universityId])
   @@map("comments")
+}
+
+model UniversityReview {
+  id           String             @id @default(uuid())
+  universityId String
+  userId       String
+  text         String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  university   University         @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ratings      UniversityRating[]
+
+  @@unique([userId, universityId])
+  @@index([universityId, createdAt])
+  @@map("university_reviews")
+}
+
+model UniversityRating {
+  id           String           @id @default(uuid())
+  reviewId     String
+  universityId String
+  category     RatingCategory
+  score        Int
+  createdAt    DateTime         @default(now())
+  review       UniversityReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  university   University       @relation(fields: [universityId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, category])
+  @@index([universityId, category])
+  @@map("university_ratings")
 }

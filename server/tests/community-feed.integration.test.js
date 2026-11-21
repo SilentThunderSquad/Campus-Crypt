@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { prisma } from '../src/config/db.js';
 import app from '../src/app.js';
+import { createPhase3FixtureSet } from './fixtures/phase3-fixtures.js';
+import { createUniversityReview } from '../src/services/universityRatingService.js';
 
 async function startServer() {
   const server = createServer(app);
@@ -88,6 +90,31 @@ test('community feed HTTP route preserves public access for an invalid bearer to
   } finally {
     await stopServer(server);
     await prisma.university.delete({ where: { id: university.id } });
+  }
+});
+
+test('community feed HTTP route includes public review activity', async () => {
+  const fixture = await createPhase3FixtureSet({ label: 'feed-review' });
+  const { server, url } = await startServer();
+  try {
+    await createUniversityReview({
+      universitySlug: fixture.university.slug,
+      userId: fixture.user.id,
+      text: 'Public feed review',
+      ratings: { academics: 5, facilities: 4, campus_life: 4, value: 5 },
+    });
+
+    const response = await fetch(`${url}/api/universities/${fixture.university.slug}/feed`, {
+      headers: { Origin: 'http://localhost:3000' },
+    });
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(body.items[0].type, 'review');
+    assert.equal(body.items[0].text, 'Public feed review');
+    assert.equal(body.items[0].author.email, undefined);
+  } finally {
+    await stopServer(server);
+    await fixture.cleanup();
   }
 });
 

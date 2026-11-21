@@ -2,6 +2,7 @@ import { findUniversityBySlug, normalizeUniversitySlug, isValidUniversitySlug } 
 import { publicAuthor } from './postService.js';
 import { boundComments } from './discussionService.js';
 import { prisma } from '../config/db.js';
+import { publicReviewer } from './universityRatingService.js';
 
 export function canReadPublicCommunityFeed({ user } = {}) {
   // The current schema has no explicit account restriction field or feed-read restriction.
@@ -68,6 +69,34 @@ export async function getFeedForUniversity({ universitySlug, user }) {
     comments: boundComments(post.comments),
   }));
 
+  const reviews = await prisma.universityReview.findMany({
+    where: { universityId: university.id },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+    include: {
+      user: { select: publicReviewer },
+      ratings: { select: { category: true, score: true } },
+    },
+  });
+
+  const reviewItems = reviews.map((review) => {
+    const ratings = {};
+    for (const rating of review.ratings) ratings[rating.category] = rating.score;
+    return {
+      id: review.id,
+      type: 'review',
+      text: review.text,
+      ratings,
+      createdAt: review.createdAt,
+      updatedAt: review.updatedAt,
+      author: review.user,
+    };
+  });
+
+  const mergedItems = [...items, ...reviewItems].sort(
+    (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+  );
+
   return {
     ok: true,
     university: {
@@ -84,6 +113,6 @@ export async function getFeedForUniversity({ universitySlug, user }) {
           },
         }
       : {}),
-    items,
+    items: mergedItems,
   };
 }

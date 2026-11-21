@@ -115,6 +115,14 @@ export function CommunityFeedPage({ slug, accessToken }) {
                 </a>
                 <time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString()}</time>
               </div>
+              {item.type === 'review' ? (
+                <div className="review-feed-item">
+                  <strong>University review</strong>
+                  {item.text && <p>{item.text}</p>}
+                  <p>{Object.entries(item.ratings || {}).map(([category, score]) => `${category}: ${score}`).join(' · ')}</p>
+                </div>
+              ) : (
+                <>
               {edit.postId === item.id ? (
                 <form onSubmit={submitEdit}><textarea value={edit.text} onChange={(event) => setEdit({ ...edit, text: event.target.value })} maxLength={5000} required /><button type="submit">Save post</button></form>
               ) : <p className="post-content">{item.content}</p>}
@@ -126,6 +134,8 @@ export function CommunityFeedPage({ slug, accessToken }) {
                 <form onSubmit={submitReply} className="reply-form"><textarea value={reply.text} onChange={(event) => setReply({ ...reply, text: event.target.value })} maxLength={2000} required /><button type="submit">Post reply</button></form>
               )}
               <div className="discussion"><CommentTree comments={item.comments || []} canReply={canReply} onReply={(parentCommentId) => setReply({ postId: item.id, parentCommentId, text: '' })} /></div>
+                </>
+              )}
             </article>
           )) : <div className="empty-feed-state"><p>No community activity yet.</p></div>}
         </section>

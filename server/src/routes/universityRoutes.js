@@ -7,6 +7,7 @@ import {
   isValidUniversitySlug,
   normalizeUniversitySlug,
 } from '../validators/universityValidators.js';
+import { getAuthoritativeUniversityAggregates } from '../services/universityRatingService.js';
 
 const router = Router();
 
@@ -48,11 +49,13 @@ router.get('/:slug', async (req, res) => {
   }
 
   const { memberships, ...publicUniversity } = university;
+  const aggregates = await getAuthoritativeUniversityAggregates({ universitySlug: slug });
   return res.json({
     ok: true,
     university: {
       ...publicUniversity,
       memberCount: memberships.length,
+      aggregates,
     },
   });
 });

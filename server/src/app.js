@@ -11,6 +11,7 @@ import universityRoutes from './routes/universityRoutes.js';
 import profileRoutes from './routes/profile.js';
 import postRoutes from './routes/postRoutes.js';
 import commentRoutes from './routes/commentRoutes.js';
+import reviewRoutes from './routes/reviewRoutes.js';
 
 const allowedOrigins = (env.corsOrigin ?? '')
   .split(',')
@@ -94,6 +95,7 @@ app.use('/api/universities', communityMembershipRoutes);
 app.use('/api/universities', communityFeedRoutes);
 app.use('/api/universities', postRoutes);
 app.use('/api/universities', commentRoutes);
+app.use('/api/universities', reviewRoutes);
 app.use('/api/users', profileRoutes);
 
 app.use((err, req, res, next) => {
