@@ -41,6 +41,8 @@ model User {
   sessions              Session[]
   communityMemberships  CommunityMembership[]
   profile               UserProfile?
+  posts                 Post[]
+  comments              Comment[]
 
   @@map("users")
 }
@@ -87,6 +89,8 @@ model University {
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
   memberships CommunityMembership[]
+  posts       Post[]
+  comments    Comment[]
 
   @@map("universities")
 }
@@ -126,4 +130,41 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@map("audit_logs")
+}
+
+model Post {
+  id           String      @id @default(uuid())
+  universityId String
+  authorId     String
+  content      String
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  university   University  @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  author       User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments     Comment[]
+
+  @@index([universityId, createdAt])
+  @@index([authorId])
+  @@map("posts")
+}
+
+model Comment {
+  id              String    @id @default(uuid())
+  postId          String
+  universityId    String
+  authorId        String
+  parentCommentId String?
+  content         String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  post            Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  university      University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  author          User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parentComment   Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies         Comment[] @relation("CommentReplies")
+
+  @@index([postId, createdAt])
+  @@index([parentCommentId])
+  @@index([universityId])
+  @@map("comments")
 }

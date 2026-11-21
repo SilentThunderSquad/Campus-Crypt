@@ -1,191 +1,145 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 const apiBase = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+
+async function request(path, accessToken, options = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) };
+  const response = await fetch(`${apiBase}${path}`, { ...options, headers, credentials: 'include' });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.message || 'Request failed.');
+  return body;
+}
+
+function CommentTree({ comments, onReply, canReply }) {
+  return comments.map((comment) => (
+    <div className="comment" key={comment.id}>
+      <div className="comment-meta">
+        <strong>{comment.author?.profile?.displayName || comment.author?.name}</strong>
+        <span>{new Date(comment.createdAt).toLocaleString()}</span>
+      </div>
+      <p>{comment.content}</p>
+      {canReply && (
+        <button type="button" onClick={() => onReply(comment.id)}>Reply</button>
+      )}
+      {comment.replies?.length > 0 && (
+        <div className="replies"><CommentTree comments={comment.replies} onReply={onReply} canReply={canReply} /></div>
+      )}
+    </div>
+  ));
+}
 
 export function CommunityFeedPage({ slug, accessToken }) {
   const [feed, setFeed] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [postText, setPostText] = useState('');
+  const [reply, setReply] = useState({ postId: null, parentCommentId: null, text: '' });
+  const [edit, setEdit] = useState({ postId: null, text: '' });
+  const [actionError, setActionError] = useState(null);
 
-  useEffect(() => {
-    const fetchFeed = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const headers = accessToken
-          ? { Authorization: `Bearer ${accessToken}` }
-          : {};
-        const response = await fetch(`${apiBase}/api/universities/${encodeURIComponent(slug)}/feed`, {
-          headers,
-          credentials: 'include',
-        });
-
-        if (!response.ok) {
-          if (response.status === 404) {
-            setError('University not found.');
-          } else if (response.status === 401 || response.status === 403) {
-            setError('You are not authorized to view this community feed.');
-          } else {
-            setError('Unable to load community feed.');
-          }
-          setFeed(null);
-          return;
-        }
-
-        const data = await response.json();
-        if (data.ok) {
-          setFeed(data);
-        } else {
-          setError(data.message || 'Unable to load community feed.');
-          setFeed(null);
-        }
-      } catch (err) {
-        console.error('Error fetching community feed:', err);
-        setError('Network error. Unable to load community feed.');
-        setFeed(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (slug) {
-      fetchFeed();
+  const loadFeed = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setFeed(await request(`/api/universities/${encodeURIComponent(slug)}/feed`, accessToken));
+    } catch (err) {
+      setError(err.message || 'Unable to load community feed.');
+      setFeed(null);
+    } finally {
+      setLoading(false);
     }
-  }, [slug, accessToken]);
+  };
 
-  if (loading) {
-    return (
-      <div className="community-feed-page">
-        <div className="container">
-          <p>Loading community feed...</p>
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => { if (slug) loadFeed(); }, [slug, accessToken]);
 
-  if (error) {
-    return (
-      <div className="community-feed-page">
-        <div className="container">
-          <div className="error-state">
-            <p>{error}</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const submitPost = async (event) => {
+    event.preventDefault();
+    try {
+      await request(`/api/universities/${encodeURIComponent(slug)}/posts`, accessToken, {
+        method: 'POST', body: JSON.stringify({ content: postText }),
+      });
+      setPostText('');
+      await loadFeed();
+    } catch (err) { setActionError(err.message); }
+  };
 
-  if (!feed) {
-    return (
-      <div className="community-feed-page">
-        <div className="container">
-          <p>Unable to load community feed.</p>
-        </div>
-      </div>
-    );
-  }
+  const submitReply = async (event) => {
+    event.preventDefault();
+    try {
+      await request(`/api/universities/${encodeURIComponent(slug)}/posts/${reply.postId}/comments`, accessToken, {
+        method: 'POST',
+        body: JSON.stringify({ content: reply.text, parentCommentId: reply.parentCommentId }),
+      });
+      setReply({ postId: null, parentCommentId: null, text: '' });
+      await loadFeed();
+    } catch (err) { setActionError(err.message); }
+  };
 
+  const submitEdit = async (event) => {
+    event.preventDefault();
+    try {
+      await request(`/api/universities/${encodeURIComponent(slug)}/posts/${edit.postId}`, accessToken, {
+        method: 'PATCH', body: JSON.stringify({ content: edit.text }),
+      });
+      setEdit({ postId: null, text: '' });
+      await loadFeed();
+    } catch (err) { setActionError(err.message); }
+  };
+
+  if (loading) return <div className="community-feed-page"><div className="container"><p>Loading community feed...</p></div></div>;
+  if (error) return <div className="community-feed-page"><div className="container"><div className="error-state">{error}</div></div></div>;
+  if (!feed) return null;
+
+  const canReply = Boolean(feed.capabilities?.canReply);
   return (
     <div className="community-feed-page">
       <div className="container">
-        <div className="feed-header">
+        <header className="feed-header">
           <h1>{feed.university.name}</h1>
-          {feed.university.description && (
-            <p className="university-description">{feed.university.description}</p>
-          )}
-        </div>
-
-        <div className="feed-section">
-          {feed.items && feed.items.length > 0 ? (
-            <div className="feed-items">
-              {feed.items.map((item) => (
-                <div key={item.id} className="feed-item">
-                  {/* Phase 3+ content will populate feed items */}
-                  {item.content}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="empty-feed-state">
-              <p>No community activity yet.</p>
-              <p className="empty-feed-hint">
-                Community discussions, posts, and reviews will appear here as members participate.
-              </p>
-            </div>
-          )}
-        </div>
+          {feed.university.description && <p className="university-description">{feed.university.description}</p>}
+        </header>
+        {actionError && <div className="error-state">{actionError}</div>}
+        {feed.capabilities?.canCreatePost && (
+          <form className="composer" onSubmit={submitPost}>
+            <label htmlFor="post-content">Create a post</label>
+            <textarea id="post-content" value={postText} onChange={(event) => setPostText(event.target.value)} maxLength={5000} required />
+            <button type="submit">Publish post</button>
+          </form>
+        )}
+        <section className="feed-section">
+          {feed.items?.length ? feed.items.map((item) => (
+            <article className="feed-item" key={item.id}>
+              <div className="post-meta">
+                <a href={item.author?.profile?.username ? `/profile/${item.author.profile.username}` : '#'}>
+                  {item.author?.profile?.displayName || item.author?.name}
+                </a>
+                <time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString()}</time>
+              </div>
+              {edit.postId === item.id ? (
+                <form onSubmit={submitEdit}><textarea value={edit.text} onChange={(event) => setEdit({ ...edit, text: event.target.value })} maxLength={5000} required /><button type="submit">Save post</button></form>
+              ) : <p className="post-content">{item.content}</p>}
+              {item.canEdit && edit.postId !== item.id && <button type="button" onClick={() => setEdit({ postId: item.id, text: item.content })}>Edit post</button>}
+              {canReply && (
+                <button type="button" onClick={() => setReply({ postId: item.id, parentCommentId: null, text: '' })}>Reply</button>
+              )}
+              {reply.postId === item.id && (
+                <form onSubmit={submitReply} className="reply-form"><textarea value={reply.text} onChange={(event) => setReply({ ...reply, text: event.target.value })} maxLength={2000} required /><button type="submit">Post reply</button></form>
+              )}
+              <div className="discussion"><CommentTree comments={item.comments || []} canReply={canReply} onReply={(parentCommentId) => setReply({ postId: item.id, parentCommentId, text: '' })} /></div>
+            </article>
+          )) : <div className="empty-feed-state"><p>No community activity yet.</p></div>}
+        </section>
       </div>
-
       <style>{`
-        .community-feed-page {
-          padding: 2rem 1rem;
-          min-height: 100vh;
-          background-color: #f8f9fa;
-        }
-
-        .container {
-          max-width: 800px;
-          margin: 0 auto;
-        }
-
-        .feed-header {
-          margin-bottom: 2rem;
-        }
-
-        .feed-header h1 {
-          font-size: 2rem;
-          margin: 0 0 0.5rem 0;
-          color: #1a1a1a;
-        }
-
-        .university-description {
-          color: #666;
-          margin: 0;
-          font-size: 1.1rem;
-        }
-
-        .feed-section {
-          background-color: white;
-          border-radius: 8px;
-          padding: 2rem;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-
-        .feed-items {
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-        }
-
-        .feed-item {
-          padding: 1rem;
-          border-bottom: 1px solid #eee;
-        }
-
-        .empty-feed-state {
-          text-align: center;
-          padding: 2rem 0;
-          color: #666;
-        }
-
-        .empty-feed-state p {
-          margin: 0.5rem 0;
-        }
-
-        .empty-feed-hint {
-          font-size: 0.95rem;
-          color: #999;
-        }
-
-        .error-state {
-          background-color: #fee;
-          border: 1px solid #fcc;
-          border-radius: 8px;
-          padding: 1rem;
-          color: #c00;
-          text-align: center;
-        }
+        .community-feed-page { padding: 2rem 1rem; min-height: 100vh; background: #f8f9fa; }
+        .container { max-width: 800px; margin: 0 auto; } .feed-header { margin-bottom: 2rem; }
+        .feed-header h1 { margin: 0 0 .5rem; } .university-description { color: #666; }
+        .feed-section, .composer { background: white; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; box-shadow: 0 2px 4px #00000012; }
+        .feed-item { padding: 1rem 0; border-bottom: 1px solid #eee; } .post-meta, .comment-meta { display: flex; gap: .75rem; align-items: center; color: #666; font-size: .9rem; }
+        .post-meta a { color: #2457a6; font-weight: 600; } textarea { display: block; width: 100%; min-height: 80px; margin: .5rem 0; box-sizing: border-box; }
+        button { margin: .25rem .5rem .25rem 0; } .comment { border-left: 2px solid #eee; padding: .5rem 0 .5rem 1rem; }
+        .replies { margin-left: 1rem; } .error-state { padding: 1rem; color: #a00; background: #fee; border: 1px solid #fcc; margin-bottom: 1rem; }
+        .empty-feed-state { text-align: center; padding: 2rem; color: #666; }
       `}</style>
     </div>
   );

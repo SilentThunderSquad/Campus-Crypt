@@ -9,6 +9,8 @@ import communityMembershipRoutes from './routes/communityMembership.js';
 import communityFeedRoutes from './routes/communityFeed.js';
 import universityRoutes from './routes/universityRoutes.js';
 import profileRoutes from './routes/profile.js';
+import postRoutes from './routes/postRoutes.js';
+import commentRoutes from './routes/commentRoutes.js';
 
 const allowedOrigins = (env.corsOrigin ?? '')
   .split(',')
@@ -28,7 +30,7 @@ const corsOptions = {
     return callback(new Error('Origin not allowed by CORS policy.'));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
@@ -90,6 +92,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/universities', universityRoutes);
 app.use('/api/universities', communityMembershipRoutes);
 app.use('/api/universities', communityFeedRoutes);
+app.use('/api/universities', postRoutes);
+app.use('/api/universities', commentRoutes);
 app.use('/api/users', profileRoutes);
 
 app.use((err, req, res, next) => {

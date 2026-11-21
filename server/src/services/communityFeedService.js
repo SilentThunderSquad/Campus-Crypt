@@ -1,4 +1,7 @@
 import { findUniversityBySlug, normalizeUniversitySlug, isValidUniversitySlug } from './universityService.js';
+import { publicAuthor } from './postService.js';
+import { boundComments } from './discussionService.js';
+import { prisma } from '../config/db.js';
 
 export function canReadPublicCommunityFeed({ user } = {}) {
   // The current schema has no explicit account restriction field or feed-read restriction.
@@ -41,9 +44,29 @@ export async function getFeedForUniversity({ universitySlug, user }) {
     };
   }
 
-  // Phase 2: Return empty feed.
-  // Phase 3+ systems (posts, discussions, reviews, Q&A) will populate this.
-  const items = [];
+  const posts = await prisma.post.findMany({
+    where: { universityId: university.id },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+    include: {
+      author: { select: publicAuthor },
+      comments: {
+        orderBy: { createdAt: 'asc' },
+        take: 100,
+        include: { author: { select: publicAuthor } },
+      },
+    },
+  });
+  const items = posts.map((post) => ({
+    id: post.id,
+    type: 'post',
+    content: post.content,
+    createdAt: post.createdAt,
+    updatedAt: post.updatedAt,
+    author: post.author,
+    canEdit: Boolean(user?.id && user.id === post.authorId),
+    comments: boundComments(post.comments),
+  }));
 
   return {
     ok: true,
@@ -53,6 +76,14 @@ export async function getFeedForUniversity({ universitySlug, user }) {
       slug: university.slug,
       description: university.description,
     },
+    ...(user
+      ? {
+          capabilities: {
+            canCreatePost: user.verificationStatus === 'verified',
+            canReply: true,
+          },
+        }
+      : {}),
     items,
   };
 }
