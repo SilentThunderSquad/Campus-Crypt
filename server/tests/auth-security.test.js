@@ -18,6 +18,17 @@ import {
   joinUniversity,
   leaveUniversity,
 } from '../src/services/communityMembershipService.js';
+import {
+  getUserProfileByUsername,
+  getUserProfileByUserId,
+  createUserProfile,
+} from '../src/services/profileService.js';
+import { canReadPublicCommunityFeed } from '../src/services/communityFeedService.js';
+import {
+  isValidUsername,
+  normalizeUsername,
+  isReservedUsername,
+} from '../src/validators/profileValidators.js';
 
 function createResponse() {
   return {
@@ -387,3 +398,231 @@ test('university slugs are URL-safe and public university endpoints resolve by s
     assert.equal(databaseLookup, null);
   }
 });
+
+test('valid usernames are accepted and invalid usernames are rejected', () => {
+  assert.equal(isValidUsername('alice'), true);
+  assert.equal(isValidUsername('bob_123'), true);
+  assert.equal(isValidUsername('charlie-smith'), true);
+  assert.equal(isValidUsername('alice123'), true);
+
+  assert.equal(isValidUsername('ab'), false);
+  assert.equal(isValidUsername('a_'.repeat(20)), false);
+  assert.equal(isValidUsername('alice@bob'), false);
+  assert.equal(isValidUsername('alice bob'), false);
+  assert.equal(isValidUsername('-alice'), false);
+  assert.equal(isValidUsername('alice-'), false);
+  assert.equal(isValidUsername('_alice'), false);
+  assert.equal(isValidUsername('alice_'), false);
+  assert.equal(isValidUsername(''), false);
+  assert.equal(isValidUsername(null), false);
+  assert.equal(isValidUsername(undefined), false);
+});
+
+test('reserved usernames are rejected', () => {
+  assert.equal(isReservedUsername('admin'), true);
+  assert.equal(isReservedUsername('api'), true);
+  assert.equal(isReservedUsername('profile'), true);
+  assert.equal(isReservedUsername('settings'), true);
+  assert.equal(isReservedUsername('Admin'), true);
+  assert.equal(isReservedUsername('ADMIN'), true);
+
+  assert.equal(isReservedUsername('alice'), false);
+  assert.equal(isReservedUsername('bob_smith'), false);
+  assert.equal(isReservedUsername('charlie123'), false);
+});
+
+test('username normalization converts to lowercase', () => {
+  assert.equal(normalizeUsername('Alice'), 'alice');
+  assert.equal(normalizeUsername('BOB_123'), 'bob_123');
+  assert.equal(normalizeUsername('  charlie-smith  '), 'charlie-smith');
+  assert.equal(normalizeUsername(''), null);
+  assert.equal(normalizeUsername(null), null);
+});
+
+test('public community feed read policy allows every supported user state', () => {
+  const states = [
+    null,
+    { id: 'unverified-user', role: 'student', verificationStatus: 'unverified' },
+    { id: 'verified-non-member', role: 'student', verificationStatus: 'verified' },
+    { id: 'verified-member', role: 'student', verificationStatus: 'verified' },
+    { id: 'administrator', role: 'admin', verificationStatus: 'verified' },
+  ];
+
+  for (const user of states) {
+    assert.equal(canReadPublicCommunityFeed({ user }), true);
+  }
+});
+
+test('user profile can be created with valid username and retrieved by username', async () => {
+  const email = `profile.${Date.now()}@campuscrypt.dev`;
+  const supabaseUserId = `supabase-profile-${Date.now()}`;
+  const username = `testuser${Date.now()}`;
+
+  try {
+    const user = await syncUserFromSupabaseIdentity({
+      id: supabaseUserId,
+      email,
+      user_metadata: { full_name: 'Test Profile User' },
+    });
+
+    const profile = await createUserProfile({
+      userId: user.id,
+      username,
+      displayName: 'Test Profile User',
+      bio: 'A test profile',
+      avatarUrl: null,
+    });
+
+    assert.equal(profile.username, username);
+    assert.equal(profile.userId, user.id);
+    assert.equal(profile.displayName, 'Test Profile User');
+    assert.equal(profile.bio, 'A test profile');
+
+    const retrieved = await getUserProfileByUsername(username);
+    assert.ok(retrieved);
+    assert.equal(retrieved.username, username);
+    assert.equal(retrieved.userId, user.id);
+    assert.equal(retrieved.displayName, 'Test Profile User');
+
+    const retrievedById = await getUserProfileByUserId(user.id);
+    assert.ok(retrievedById);
+    assert.equal(retrievedById.username, username);
+    assert.equal(retrievedById.userId, user.id);
+  } finally {
+    await prisma.userProfile.deleteMany({ where: { username } });
+    await prisma.user.deleteMany({ where: { email } });
+  }
+});
+
+test('duplicate usernames are rejected at database level', async () => {
+  const email1 = `profile-dup-1-${Date.now()}@campuscrypt.dev`;
+  const email2 = `profile-dup-2-${Date.now()}@campuscrypt.dev`;
+  const supabaseUserId1 = `supabase-profile-dup-1-${Date.now()}`;
+  const supabaseUserId2 = `supabase-profile-dup-2-${Date.now()}`;
+  const username = `duptest${Date.now()}`;
+
+  try {
+    const user1 = await syncUserFromSupabaseIdentity({
+      id: supabaseUserId1,
+      email: email1,
+      user_metadata: { full_name: 'User 1' },
+    });
+
+    const user2 = await syncUserFromSupabaseIdentity({
+      id: supabaseUserId2,
+      email: email2,
+      user_metadata: { full_name: 'User 2' },
+    });
+
+    const profile1 = await createUserProfile({
+      userId: user1.id,
+      username,
+      displayName: 'User 1',
+    });
+
+    assert.ok(profile1);
+
+    const profile2Promise = createUserProfile({
+      userId: user2.id,
+      username,
+      displayName: 'User 2',
+    });
+
+    await assert.rejects(profile2Promise, /already taken|duplicate/i);
+  } finally {
+    await prisma.userProfile.deleteMany({ where: { username } });
+    await prisma.user.deleteMany({ where: { email: { in: [email1, email2] } } });
+  }
+});
+
+test('profile lookup returns not found for missing username', async () => {
+  const missing = `missing-profile-${Date.now()}`;
+  const profile = await getUserProfileByUsername(missing);
+  assert.equal(profile, null);
+});
+
+test('profile lookup does not expose sensitive user fields', async () => {
+  const email = `sensitive-${Date.now()}@campuscrypt.dev`;
+  const supabaseUserId = `supabase-sensitive-${Date.now()}`;
+  const username = `sensitive${Date.now()}`;
+
+  try {
+    const user = await syncUserFromSupabaseIdentity({
+      id: supabaseUserId,
+      email,
+      user_metadata: { full_name: 'Sensitive User' },
+    });
+
+    await createUserProfile({
+      userId: user.id,
+      username,
+      displayName: 'Sensitive User',
+    });
+
+    const profile = await getUserProfileByUsername(username);
+
+    assert.ok(profile);
+    assert.ok(profile.user);
+    assert.equal(profile.user.id, user.id);
+    assert.equal(profile.user.name, user.name);
+    assert.ok(profile.user.createdAt);
+
+    assert.equal(profile.user.email, undefined);
+    assert.equal(profile.user.role, undefined);
+    assert.equal(profile.user.verificationStatus, undefined);
+    assert.equal(profile.user.supabaseUserId, undefined);
+    assert.equal(profile.user.authMetadata, undefined);
+    assert.equal(profile.user.lastLoginAt, undefined);
+    assert.equal(profile.user.lastLoginIp, undefined);
+  } finally {
+    await prisma.userProfile.deleteMany({ where: { username } });
+    await prisma.user.deleteMany({ where: { email } });
+  }
+});
+
+test('public profile endpoint resolves by username and hides sensitive fields', async () => {
+  const email = `endpoint-${Date.now()}@campuscrypt.dev`;
+  const supabaseUserId = `supabase-endpoint-${Date.now()}`;
+  const username = `endpointuser${Date.now()}`;
+
+  const server = createServer(app);
+  await new Promise((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  const port = typeof address === 'object' && address ? address.port : 0;
+
+  try {
+    const user = await syncUserFromSupabaseIdentity({
+      id: supabaseUserId,
+      email,
+      user_metadata: { full_name: 'Endpoint Test User' },
+    });
+
+    await createUserProfile({
+      userId: user.id,
+      username,
+      displayName: 'Endpoint Test User',
+      bio: 'A public profile',
+    });
+
+    const response = await fetch(`http://127.0.0.1:${port}/api/users/${encodeURIComponent(username)}`, {
+      headers: { Origin: 'http://localhost:3000' },
+    });
+
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.ok, true);
+    assert.ok(body.profile);
+    assert.equal(body.profile.username, username);
+    assert.equal(body.profile.displayName, 'Endpoint Test User');
+
+    const missingResponse = await fetch(`http://127.0.0.1:${port}/api/users/missing-profile-${Date.now()}`, {
+      headers: { Origin: 'http://localhost:3000' },
+    });
+    assert.equal(missingResponse.status, 404);
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    await prisma.userProfile.deleteMany({ where: { username } });
+    await prisma.user.deleteMany({ where: { email } });
+  }
+});
+

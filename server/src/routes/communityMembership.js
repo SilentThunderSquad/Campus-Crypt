@@ -6,8 +6,24 @@ import {
   leaveUniversity,
 } from '../services/communityMembershipService.js';
 import { normalizeUniversitySlug, isValidUniversitySlug } from '../services/universityService.js';
+import { requireAuth, requireVerifiedUser } from '../middleware/auth.js';
+import { requireUniversityMember } from '../middleware/phase2Authorization.js';
 
 const router = Router();
+
+function validateUniversitySlug(req, res, next) {
+  const slug = normalizeUniversitySlug(req.params.slug);
+
+  if (!isValidUniversitySlug(slug)) {
+    return res.status(400).json({
+      ok: false,
+      message: 'University slug must be a valid URL-safe identifier.',
+    });
+  }
+
+  req.params.slug = slug;
+  return next();
+}
 
 router.get('/:slug/membership-status', async (req, res) => {
   const slug = normalizeUniversitySlug(req.params.slug);
@@ -41,32 +57,9 @@ router.get('/:slug/membership-status', async (req, res) => {
   });
 });
 
-router.post('/:slug/join', async (req, res) => {
-  const slug = normalizeUniversitySlug(req.params.slug);
-
-  if (!isValidUniversitySlug(slug)) {
-    return res.status(400).json({
-      ok: false,
-      message: 'University slug must be a valid URL-safe identifier.',
-    });
-  }
-
-  const user = await getUserFromRequest(req);
-
-  if (!user) {
-    return res.status(401).json({
-      ok: false,
-      message: 'Authentication required to join a university community.',
-    });
-  }
-
-  if (user.verificationStatus !== 'verified') {
-    return res.status(403).json({
-      ok: false,
-      message: 'Verified users are required to join a university community.',
-    });
-  }
-
+router.post('/:slug/join', validateUniversitySlug, requireAuth, requireVerifiedUser, async (req, res) => {
+  const slug = req.params.slug;
+  const user = req.user;
   try {
     const result = await joinUniversity({ user, universitySlug: slug });
 
@@ -102,32 +95,9 @@ router.post('/:slug/join', async (req, res) => {
   }
 });
 
-router.post('/:slug/leave', async (req, res) => {
-  const slug = normalizeUniversitySlug(req.params.slug);
-
-  if (!isValidUniversitySlug(slug)) {
-    return res.status(400).json({
-      ok: false,
-      message: 'University slug must be a valid URL-safe identifier.',
-    });
-  }
-
-  const user = await getUserFromRequest(req);
-
-  if (!user) {
-    return res.status(401).json({
-      ok: false,
-      message: 'Authentication required to leave a university community.',
-    });
-  }
-
-  if (user.verificationStatus !== 'verified') {
-    return res.status(403).json({
-      ok: false,
-      message: 'Verified users are required to leave a university community.',
-    });
-  }
-
+router.post('/:slug/leave', validateUniversitySlug, requireAuth, requireVerifiedUser, requireUniversityMember, async (req, res) => {
+  const slug = req.params.slug;
+  const user = req.user;
   try {
     const result = await leaveUniversity({ user, universitySlug: slug });
 

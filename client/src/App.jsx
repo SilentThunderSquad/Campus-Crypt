@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import './styles/auth-shell.css';
+import { CommunityFeedPage } from './pages/community/CommunityFeedPage';
 
 const guestState = {
   id: null,
@@ -22,11 +23,33 @@ const supabase = supabaseUrl && supabaseAnonKey
     })
   : null;
 
+function parseRoute(pathname) {
+  const feedMatch = pathname.match(/^\/u\/([^/]+)\/feed$/);
+  if (feedMatch) {
+    return {
+      page: 'feed',
+      slug: decodeURIComponent(feedMatch[1]),
+    };
+  }
+
+  return { page: 'home' };
+}
+
 function App() {
   const [session, setSession] = useState(null);
   const [backendUser, setBackendUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState('');
+  const [route, setRoute] = useState(() => parseRoute(window.location.pathname));
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setRoute(parseRoute(window.location.pathname));
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     if (!supabase) {
@@ -126,6 +149,10 @@ function App() {
     setBackendUser(null);
     setStatusMessage('Logged out successfully');
   };
+
+  if (route.page === 'feed') {
+    return <CommunityFeedPage slug={route.slug} accessToken={session?.access_token} />;
+  }
 
   if (loading) {
     return <div className="auth-shell"><div className="auth-card"><h1>Loading auth state…</h1></div></div>;

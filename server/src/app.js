@@ -6,7 +6,9 @@ import cookieParser from 'cookie-parser';
 import { env } from './config/env.js';
 import authRoutes from './routes/authRoutes.js';
 import communityMembershipRoutes from './routes/communityMembership.js';
+import communityFeedRoutes from './routes/communityFeed.js';
 import universityRoutes from './routes/universityRoutes.js';
+import profileRoutes from './routes/profile.js';
 
 const allowedOrigins = (env.corsOrigin ?? '')
   .split(',')
@@ -87,6 +89,8 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/universities', universityRoutes);
 app.use('/api/universities', communityMembershipRoutes);
+app.use('/api/universities', communityFeedRoutes);
+app.use('/api/users', profileRoutes);
 
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && 'body' in err) {
