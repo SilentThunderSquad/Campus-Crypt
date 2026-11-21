@@ -1,19 +1,10 @@
 import { prisma } from '../config/db.js';
+import {
+  normalizeUniversitySlug,
+  isValidUniversitySlug,
+} from '../validators/universityValidators.js';
 
-export function normalizeUniversitySlug(value = '') {
-  return String(value ?? '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-export function isValidUniversitySlug(value = '') {
-  const slug = normalizeUniversitySlug(value);
-  return slug.length >= 2 && slug.length <= 80 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug);
-}
+export { normalizeUniversitySlug, isValidUniversitySlug };
 
 export async function listUniversities() {
   const universities = await prisma.university.findMany({
@@ -60,12 +51,19 @@ export async function createUniversity({ name, slug, description }) {
     throw new Error('University slug must be URL-safe and at least 2 characters long.');
   }
 
-  return prisma.university.create({
-    data: {
-      name: safeName,
-      slug: safeSlug,
-      description: description ? String(description).trim() : null,
-    },
-    include: { memberships: true },
-  });
+  try {
+    return await prisma.university.create({
+      data: {
+        name: safeName,
+        slug: safeSlug,
+        description: description ? String(description).trim() : null,
+      },
+      include: { memberships: true },
+    });
+  } catch (error) {
+    if (error?.code === 'P2002') {
+      throw new Error('University slug already taken.');
+    }
+    throw error;
+  }
 }

@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import {
   findUniversityBySlug,
-  isValidUniversitySlug,
   listUniversities,
-  normalizeUniversitySlug,
 } from '../services/universityService.js';
+import {
+  isValidUniversitySlug,
+  normalizeUniversitySlug,
+} from '../validators/universityValidators.js';
 
 const router = Router();
 

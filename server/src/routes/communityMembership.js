@@ -5,7 +5,10 @@ import {
   joinUniversity,
   leaveUniversity,
 } from '../services/communityMembershipService.js';
-import { normalizeUniversitySlug, isValidUniversitySlug } from '../services/universityService.js';
+import {
+  normalizeUniversitySlug,
+  isValidUniversitySlug,
+} from '../validators/universityValidators.js';
 import { requireAuth, requireVerifiedUser } from '../middleware/auth.js';
 import { requireUniversityMember } from '../middleware/phase2Authorization.js';
 

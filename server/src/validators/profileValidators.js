@@ -35,25 +35,24 @@ const RESERVED_USERNAMES = new Set([
 ]);
 
 export function isValidUsername(username) {
-  if (!username || typeof username !== 'string') {
+  const normalized = normalizeUsername(username);
+  if (!normalized) {
     return false;
   }
 
-  const trimmed = username.trim();
-
-  if (trimmed.length < 3 || trimmed.length > 32) {
+  if (normalized.length < 3 || normalized.length > 32) {
     return false;
   }
 
-  if (!/^[a-z0-9_-]+$/.test(trimmed)) {
+  if (!/^[a-z0-9_-]+$/.test(normalized)) {
     return false;
   }
 
-  if (/^-|-$|^_|_$/.test(trimmed)) {
+  if (/^-|-$|^_|_$/.test(normalized)) {
     return false;
   }
 
-  if (RESERVED_USERNAMES.has(trimmed.toLowerCase())) {
+  if (RESERVED_USERNAMES.has(normalized)) {
     return false;
   }
 

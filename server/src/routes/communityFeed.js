@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import { getUserFromRequest } from '../services/authService.js';
 import { getFeedForUniversity } from '../services/communityFeedService.js';
-import { normalizeUniversitySlug, isValidUniversitySlug } from '../services/universityService.js';
+import {
+  normalizeUniversitySlug,
+  isValidUniversitySlug,
+} from '../validators/universityValidators.js';
 
 const router = Router();
 

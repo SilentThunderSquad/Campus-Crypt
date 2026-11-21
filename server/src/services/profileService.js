@@ -113,24 +113,32 @@ export async function createUserProfile({ userId, username, displayName, bio, av
     throw new Error('Username already taken.');
   }
 
-  const profile = await prisma.userProfile.create({
-    data: {
-      userId,
-      username: normalized,
-      displayName,
-      bio: bio || null,
-      avatarUrl: avatarUrl || null,
-    },
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          createdAt: true,
+  let profile;
+  try {
+    profile = await prisma.userProfile.create({
+      data: {
+        userId,
+        username: normalized,
+        displayName,
+        bio: bio || null,
+        avatarUrl: avatarUrl || null,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            createdAt: true,
+          },
         },
       },
-    },
-  });
+    });
+  } catch (error) {
+    if (error?.code === 'P2002') {
+      throw new Error('Username already taken.');
+    }
+    throw error;
+  }
 
   return {
     id: profile.id,
